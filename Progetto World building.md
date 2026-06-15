@@ -42,3 +42,8 @@ Rete neurale siamese
 https://www.nature.com/articles/s41598-023-35170-z
 https://www.diva-portal.org/smash/get/diva2:1885830/FULLTEXT01.pdf
 https://research.google/blog/lidar-camera-deep-fusion-for-multi-modal-3d-detection/
+
+
+### Introduction to Lidar
+https://medium.com/@amnahhmohammed/getting-started-with-lidar-92ff984ec9f3
+https://medium.com/@faizalmusthofa69/the-art-of-lidar-901e9ed6348b
