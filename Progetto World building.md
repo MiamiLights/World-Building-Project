@@ -43,6 +43,8 @@ https://www.nature.com/articles/s41598-023-35170-z
 https://www.diva-portal.org/smash/get/diva2:1885830/FULLTEXT01.pdf
 https://research.google/blog/lidar-camera-deep-fusion-for-multi-modal-3d-detection/
 
+### Algoritmi di classificazione
+https://www.neuvition.com/it/technology-blog/classification-algorithms.html  (aggiornato al 2023)
 
 ### Introduction to Lidar
 https://medium.com/@amnahhmohammed/getting-started-with-lidar-92ff984ec9f3
