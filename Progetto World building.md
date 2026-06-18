@@ -89,6 +89,15 @@ Telecamere varie: Ricostruzione 3D molto complicata ma riconoscimento semplice.
 
 #### Fusione LiDAR e Camera
 
+##### Calibrazione camera
+
+Prima di poter lavorare con il LiDAR è necessario "calibrare" la telecamera. Utilizzando una libreria Python per la computer vision chiamata openCV e tramite l'utilizzo di una scacchiera, si calcolano due componenti: 
+- una matrice intrinseca **K** (la carta di identità ottica della telecamera) che indica al computer come la lente specifica veda il mondo e lo proietta sul sensore 2D. 
+- il coefficiente di distorsione: 5 numeri che descrivono l'equazione della curva che la lente crea.
+
+Ogni foto che la telecamera scatta andrà "sistemata" tramite l'utilizzo di questi due componenti avendo come prodotto un'immagine oggettiva senza la distorsione della lente. 
+##### Calibrazione camera-LiDAR
+
 Se si vogliono usare una telecamera e un sensore lidar insieme bisogna fare dei passi preliminari per permettere una sincronizzazione tra i due. Fisicamente i due componenti potrebbero essere posizionati in maniera diversa. Per ovviare a questa differenza si utilizza una matrice di trasformazione, ossia una matrice 4x4 che in algebra si usa per cambiare la posizione, orientamento o dimensione di un oggetto tridimensionale. Converte le coordinate di un punto tridimensionale (x, y, z) in nuove coordinate (x', y', z') attraverso moltiplicazione standard matriciale. 
 
 ![[Pasted image 20260617142429.png]]
@@ -100,8 +109,9 @@ La colonna a destra indicata con t è il vettore di traslazione. Dice sempliceme
 
 L'ultima riga serve solo a far quadrare i conti. 
 
-Una volta calcolata questa matrice, si può prendere qualsiasi punto (X, Y, Z) del LiDAR e "proiettarlo" matematicamente sulle coordinate (u, v) dell'immagine 2D. 
+Ottenuta la matrice di trasformazione che possiamo definire "Matrice estrinseca" la moltiplichiamo per la matrice K intrinseca. 
 
+$$M_{calibrazione} = K \times T$$
 ###### Come si calcola questa matrice?
 Non si fa a occhio. Si usa un oggetto speciale chiamato target di calibrazione. 
 Il target è di solito un pannello a scacchiera o un oggetto geometrico preciso che è visibile sia alla telecamera che al LiDAR.
@@ -110,6 +120,7 @@ Una volta calcolata la matrice il software esegue questa operazione per ogni sin
 Il risultato è un nuovo punto P_camera che ha solo due coordinate (u, v) sull'immagine. 
 
 Oltre alla posizione spaziale abbiamo un problema di sincronizzazione temporale dobbiamo far corrispondere a un certo insieme di punti una certa immagine. Per fare questo utilizziamo un sistema che assegni dei timestamp a ogni pacchetto dati. Quando il sistema riceve un frame, cerca nel suo database l'immagine e la nuvola di punti che hanno lo stesso timestamp. Se il ritardo tra i due è superiore a pochi ms, il sistema scarta i dati perché sarebbero troppo imprecisi.   
+
 #### Link potenzialmente utili
 https://www.nature.com/articles/s41598-023-35170-z
 https://www.diva-portal.org/smash/get/diva2:1885830/FULLTEXT01.pdf
