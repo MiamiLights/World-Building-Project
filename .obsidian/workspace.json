@@ -78,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "b010e26233e39cef",
@@ -185,6 +186,7 @@
   },
   "active": "30936d9f68e76432",
   "lastOpenFiles": [
+    "Pasted image 20260617142429.png",
     "Stringhe.md",
     "Progetto World building.md",
     "Pasted image 20260615095616.png",
