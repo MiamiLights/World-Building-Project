@@ -1,52 +1,196 @@
 
 ### Obiettivi:
-1. Realizzazione di una mappa 3D di un'area prestabilita e raccogliere informazioni su tale area tramite impiego di reti neurali (computer vision ?). 
-2. Decidere quali algoritmi impiegare e stilare una lista di PRO e CONTRO dell'impiego di un algoritmo piuttosto che un altro. 
+Il progetto mira a sviluppare una pipeline software in grado di generare mappe 3D di un'area geografica prestabilita. Il sistema non si limiterà a ricostruire la geometria tridimensionale ma userà modelli di Deep Learning e Computer Vision per classificare gli elementi presenti nell'ambiente (vegetazione, edifici, ecc). 
 
-
-### Librerie:
-1. https://it.mathworks.com/help/lidar/getstarted.html?s_tid=CRUX_lftnav
-2. https://github.com/laspy/laspy/tree/master
-3. https://github.com/mcneel/rhino3dm
-4. https://www.open3d.org/
 
 ### Informazioni generali
-- Sensori LiDAR: i sensori LiDAR emettono raggi laser che rimbalzano sulle superfici degli oggetti e misurano il tempo che tali raggi impiegano a ritornare, permettendo al sensore di rilevare la posizione di superfici solide. La distribuzione di energia che ritorna al sensore crea delle onde: 
+- Sensori LiDAR: i sensori LiDAR emettono raggi laser che rimbalzano sulle superfici degli oggetti e misurano il tempo che tali raggi impiegano a ritornare, permettendo al sensore di rilevare la posizione di superfici solide tramite i picchi di energia rilevati. 
   
   ![[Pasted image 20260615095616.png]]
+
   
+## Analisi Comparativa dei Sensori (Pro e Contro)
+Per l'acquisizione di dati spaziali e visivi sono stati presi in esame diversi approcci hardware. La scelta finale dipende dal bilanciamento tra budget, accuratezza e densità informativa.
+
+### Approccio Pure LiDAR (3D o Solid-State)
+
+   Pro: 
+   - Precisione millimetrica: misurazione diretta e assoluta della distanza, indipendentemente dalle condizioni di illuminazione. 
+   Contro: 
+   - Costo hardware : i sensori LiDAR 3D hanno costi proibitivi. I sensori Solid-State sono più economici ma limitati nel campo visivo.
+   - Assenza di informazioni cromatiche e dettagli (scritte stradali, cartelli)
+
+## Approccio Pure Camera (Monoculare, Stereo o 360)
+
+Pro: 
+- Economicità
+- Ricchezza semantica: le immagini 2D contengono la massima densità di informazioni di colore, texture e contesto per il riconoscimento degli oggetti. 
+Contro: 
+- Cecità geometrica: La ricostruzione 3D (tramite stima della profondità) è un'approssimazione matematica. Soffre fortemente i cambi di luce, le ombre e le superfici riflettenti o monocromatiche. 
+
+## Approccio Sensor Fusion (LiDAR + CAMERA) - Approccio Consigliato
+
+Pro: 
+- Unisce la certezza geometrica del LiDAR con la ricchezza semantica della telecamera. 
+
+Contro: 
+- Richiede una complessa calibrazione spaziotemporale e un carico computazionale elevato. 
+
+## Pipeline Algoritmica 
+
+Il flusso di elaborazione dati è suddiviso in tre macro-fasi gestite tramite librerie Python specializzate.
+
+### Fase 1: Raccolta Dati e Sincronizzazione Hardware
+
+La qualità della mappa 3D finale dipende dalla precisione in fase di acquisizione e dalla corretta calibrazione dei componenti. Per garantire la coerenza geometrica ed evitare disallineamenti spaziali i componenti devono essere fissati su un supporto rigido progettato per azzerare i micro-movimenti. 
+
+#### 1. Sincronizzazione temporale hardware
+Per evitare disallineamenti spaziali i flussi dati devono essere sincronizzati al millisecondo:
+
+Soluzioni possibili:
+**Sincronizzazione hardware basata su GPS/GNSS** che funge da "orologio maestro" e invia a intervalli di tempo un impulso elettrico per azzerare i contatori interni dei sensori. Dopo l'intervallo il GPS invia ai componenti anche delle stringhe NMEA con i riferimenti temporali corretti. I dati prodotti dai componenti contengono questa stringa di dati temporali che verrà analizzata a tempo di elaborazione. Verranno presi infatti foto e punti con lo stesso timestamp dando quindi la certezza che stiamo riferendoci allo stesso contesto.
+   
+   Pro:
+   - Precisione Assoluta allineata agli orologi atomici dei satelliti
+   - Fornisce dettagli posizionali utili per associare la geometria 3D alle coordinate geografiche globali.
+
+   Contro
+   - Inutilizzabile in ambienti chiusi o con poco segnale GPS
+
+**Approccio master-slave con microcontrollore** come Master.  Il microcontrollore, collegato ai sensori tramite cavi, invia degli impulsi elettrici che fungono da starter. I componenti eseguono le loro operazioni in maniera sincrona mentre il microcontrollore comunica al PC l'invio di un impulso caratterizzato da un tag. Quando il PC riceve l'immagine e la nuvola di punti questi vengono associati all'impulso comunicato precedentemente dal microcontrollore.  
+   
+   Pro: 
+   - Immunità ambientale
+   - Controllo totale su ogni singolo impulso elettrico, potendo creare logiche di controllo personalizzate.
+
+   Contro: 
+   - Complessità elettronica e di cablaggio
+#### 2. Protocollo di Calibrazione dei Sensori
+
+Prima di avviare la sessione di rilievo effettiva, viene eseguita la procedura di calibrazione geometrica, divisa in due step sequenziali:
+
+#### A. Calibrazione Intrinseca della Telecamera (Modellazione Ottica)
+
+Serve a determinare come la lente specifica proietta il mondo 3D sul sensore 2D e a correggerne i difetti geometrici.
+
+**Metodo:** Si riprende da diverse angolazioni un target noto (scacchiera o pannello a cerchi asimmetrici) usando OpenCV o il MATLAB Camera Calibrator.
+
+**Output:** Si ottiene la matrice intrinseca K e i coefficienti di distorsione della lente (radiale e tangenziale). Ogni immagine raccolta nella pipeline viene immediatamente "rettificata" (distorta al contrario) per renderla geometricamente perfetta.
+
+#### B. Calibrazione Estrinseca LiDAR-Camera (Allineamento Spaziale)
+
+Serve a calcolare la posizione e l'orientamento relativo tra il centro ottico della telecamera e il centro del sensore LiDAR
+
+**Metodo:** Si posiziona un pannello speciale (es. una scacchiera rigida con forti contrasti sia visivi che di riflettanza LiDAR) visibile contemporaneamente a entrambi i sensori.
+
+**Algoritmo:** (DA DEFINIRE) Il software identifica gli angoli della scacchiera nell'immagine 2D e i corrispondenti spigoli tridimensionali nella nuvola di punti LiDAR. Attraverso la risoluzione del problema PnP (_Perspective-n-Point_), calcola la matrice di trasformazione omogenea T (composta da Matrice di Rotazione e Vettore di Traslazione).
+
+#### 4. Output della Fase 1
+
+Il risultato finale della Fase 1 è un dataset pronto per l'elaborazione, composto da:
+
+1. **File .las** strutturati con metadati completi (coordinate, intensità, return number) e timestamp sincroni.
+2. **Immagini .png** rettificate (prive di distorsione ottica).
+3. **File di calibrazione (calib.json o .mat)** contenente le matrici K e T, che consentiranno alla successiva fase di Sensor Fusion di proiettare istantaneamente i punti 3D sui pixel 2D tramite la formula:
+### Fase 2: Ingestione Dati, Filtraggio e Gestione della Memoria
+
+I dati grezzi appena raccolti non possono essere dati in pasto direttamente ai modelli di Deep Learning: i file LiDAR sono troppo pesanti e contengono rumore (es. polvere nell'aria o riflessi), mentre le immagini devono essere corrette geometricamente.
+
+La pipeline di questa fase prevede tre passaggi software:
+
+#### 1. Stream Batching e Parsing Efficiente (`laspy`)
+
+I file .las generati dal LiDAR possono contenere decine di milioni di punti, pesando svariati Gigabyte. Se provassimo a caricarli interamente in memoria con un comando standard, la RAM si saturerebbe immediatamente.
+
+**Soluzione**: si utilizza la libreria laspy in modalità di lettura a blocchi (chunking). L'algoritmo legge solo un pacchetto di punti alla volta, esegue le operazioni di filtraggio e libera la memoria prima di passare al blocco successivo.
+#### 2. Filtraggio del Rumore e Undersampling (`Open3D`)
+
+Una volta importati i blocchi di punti, usiamo Open3D per ottimizzare la nuvola:
+
+**Voxel Downsampling:** Lo spazio 3D viene suddiviso in una griglia di cubi virtuali chiamati Voxel. Se all'interno di un singolo cubo sono caduti 50 punti LiDAR, l'algoritmo li fonde calcolandone il baricentro e ne restituisce uno solo. Questo riduce il peso del file anche dell'80% mantenendo intatta la struttura geometrica dell'ambiente.
+    
+**Rimozione degli Outlier:** Il LiDAR può registrare falsi punti dovuti a particelle di polvere, pioggia o riflessi specchiari. L'algoritmo analizza la distanza media tra i punti: se un punto si trova isolato e troppo lontano dai suoi vicini, viene eliminato automaticamente come rumore di scansione.
+
+### 3. Rettifica delle Immagini (`OpenCV`)
+
+In parallelo al LiDAR, le immagini raccolte dalle telecamere vengono elaborate per eliminare la distorsione ottica della lente (come la curvatura dei bordi):
+
+Utilizzando la matrice intrinseca $K$ e i coefficienti di distorsione calcolati nella Fase 0, la funzione cv2.undistort() di OpenCV "stira" l'immagine pixel per pixel.
+Il risultato è un frame rettificato in cui le linee rette del mondo reale (es. i bordi dei palazzi) appaiono perfettamente dritte anche nell'immagine digitale.
+
+
+## Fase 3: Fusione Geometrico-Semantica (Sensor Fusion)
+
+In questa fase si uniscono la geometria 3D del LiDAR e i dettagli visivi della telecamera.
+Grazie a questa fase, ogni punto della nuvola 3D non sarà più un semplice punto grigio nello spazio con coordinate (X, Y, Z), ma riceverà le informazioni sul colore (R, G, B) e sulla classe semantica provenienti dall'immagine.
+
+A questo punto ci sono due opzioni:
+
+##### **1. Early Fusion**: 
+Ogni punto 3D $P_{lidar} = (X, Y, Z)$ viene proiettato sui pixel dell'immagine $(u, v)$ tramite la formula:
+
+$$P_{camera} = K \times T \times P_{lidar}$$
+**Risultato:** Il punto 3D copia il colore (RGB) del pixel corrispondente, creando una **nuvola di punti fotorealistica**.
+
+**Pro/Contro:** Semplice e leggera, ma soffre di errori di parallasse (occlusioni).
+
+##### **2. Deep Fusion** (DA DEFINIRE) 
+Reti neurali 2D (per le immagini) e 3D (per il LiDAR) estraggono le caratteristiche in parallelo e le uniscono in uno spazio comune standardizzato, la **Bird's Eye View (BEV)** (vista dall'alto).
+
+**Risultato:** Massima accuratezza nel riconoscimento degli oggetti anche con scarsa luce o dati parziali.
+
+**Pro/Contro:** Robusta ed efficiente, ma richiede GPU potenti e complessi dataset di addestramento.
+
+## Fase 4: Segmentazione Semantica e Classificazione
+
+Fase dedicata al Deep Learning per comprendere il contesto e catalogare l'ambiente:
+
+**1. Ground Filtering (Isolamento Terreno):** Algoritmi geometrici (es. Cloth Simulation Filter in Open3D) separano la quota del terreno (asfalto, terra) dagli elementi verticali (edifici, alberi).
+
+**2. Riconoscimento Oggetti 3D:** Reti come **PointNet++** analizzano la forma locale dei punti non-terreno per assegnare una classe di appartenenza codificata nel file `.las`:
+
+- Classe 2: Terreno
+- Classe 5: Vegetazione / Alberi
+- Classe 6: Edifici / Facciate
+
+## Fase 5: Ricostruzione 3D e Modellazione (World Building)
+
+La nuvola di punti discreti viene convertita in un modello geometrico continuo e matematico.
+
+**1. Ricostruzione delle Superfici (Mesh):** Algoritmi come il Poisson Surface Reconstruction (**Open3D**) uniscono i punti organici (terreno, alberi) creando una "pelle" continua di triangoli 3D.
+
+**2. Estrazione delle Primitive:** Gli oggetti rigidi urbani (edifici squadrati, pali) vengono campionati ed estrapolati sotto forma di volumi geometrici puri (**3D Bounding Boxes**) con coordinate, orientamento e dimensioni.
+
+**3. Esportazione CAD/BIM (rhino3dm):** Lo script Python genera direttamente un file .3dm (Rhinoceros), organizzando gli elementi geometrici ricostruiti su livelli separati (TERRENO, EDIFICI, VEGETAZIONE), pronti per il disegno e la modifica manuale.
+
+
+--------
+## Appunti su alcuni aspetti dei file .las
+
+##### Logica dei Ritorni Laser (Return Number e Number of Returns)
+
+I sensori a impulsi discreti registrano i picchi individuali nella curva di energia di ritorno. Un singolo impulso laser può dividersi incontrando superfici parzialmente penetrabili (es. vegetazione):
+
+**Return Number (Numero di Ritorno):** Indica l'ordine sequenziale del riflesso registrato dal sensore per quel singolo raggio.
+
+**Number of Returns (Numero Totale di Ritorni):** Rappresenta il conteggio complessivo di tutti i riflessi generati dallo stesso impulso laser (valore identico per tutti i punti nati dallo stesso raggio).
   
-Esistono due tipi di LiDAR: 
-1. Sensori LiDAR discreti: registrano picchi individuali (discreti) nella curva di energia. Questi picchi vengono registrati. 
-2. Sensori LiDAR continui: registrano una distribuzione dell'energia di ritorno. Sono più complessi rispetto a quelli discreti ma catturano più informazioni. 
+ **Esempio analitico:** Un raggio laser colpisce in sequenza una foglia alta, un ramo intermedio e il terreno, generando 3 record:
+ 1. Punto sulla foglia: Return Number = 1, Number of Returns = 3.
+ 2. Punto sul ramo: Return Number = 2, Number of Returns = 3.
+ 3. Punto sul terreno: Return Number = 3, Number of Returns = 3.     
 
-Il **numero di ritorno**(return number) di un punto indica la posizione d'ordine di quel preciso punto nella sequenza dei riflessi. Un raggio emesso dal sensore può rimbalzare su una o più superfici prima di ritornare al sensore. Mettiamo caso che un fascio di luce rimbalzi prima su un albero e successivamente sul terreno. Ad ogni rimbalzo il sensore rileva un picco di energia e registra il punto corrispondente. Il punto generato dal rimbalzo sull'albero avrà come return number 1, mentre il punto generato dal secondo rimbalzo sul terreno avrà numero di ritorno 2. Quindi il numero di ritorno corrisponde alla posizione di un dato punto nella sequenza dei rimbalzi. 
+**Rilevanza applicativa:** L'analisi combinata dei due valori permette di discriminare istantaneamente la tipologia di superficie incontrata:
 
-Il **Numero totale di ritorni** (number of returns) rappresenta il conteggio complessivo di tutti i riflessi generati dal quel singolo impulso laser. Risponde alla domanda: "In quanti pezzi totali si è diviso questo raggio laser durante il viaggio?".  E' un numero fisso e identico per tutti i punti nati dallo stesso impulso.Numero totale di ritorni
-
-Esempio:
-
-Un singolo raggio laser colpisce una foglia, poi un ramo e infine il terreno. Questo impulso genera 3 punti. 
-1. Il punto sulla foglia alta: 
-	1.  return number 1 (è stato il primo impatto)
-	2.  number of returns 3 (l' impulso totale ha prodotto 3 record)
-2. Il punto sul ramo:
-	1. return number 2
-	2. number of returns 3
-3. il punto sul terreno:
-	1. return number 3
-	2. number of returns 3
-
-Perché questa distinzione è importante? 
-
-Se un punto ha Return Number = 1 e Number of Returns = 1, significa che il laser ha colpito un oggetto solido (es. un tetto o l'asfalto) ed è tornato indietro subito senza dividersi. Se invece ha Return Number = 1 e Number of Returns = 4, sappiamo istantaneamente che quel punto è la cima di una vegetazione molto fitta attraverso cui il laser è riuscito a penetrare a fondo.
+- Se Return Number= 1 e Number of Returns = 1: l'impulso ha colpito una superficie solida impenetrabile (es. tetto, asfalto).
+- Se Return Number = 1 e Number of Returns = 4: il punto identifica la sommità di una vegetazione molto fitta penetrata parzialmente dal fascio laser.
+  
 ### Formati file LiDAR
 Che si tratti di punti discreti o distribuzioni, spesso i dati LiDAR sono disponibili sotto forma di punti discreti. Un'insieme di punti discreti viene detto "Nuvola" (LiDAR point cloud). 
 
 Ogni punto LiDAR possiede delle caratteristiche: coordinate tridimensionali (X,Y,Z), intensità e classificazione (quest'ultima caratteristica si utilizza per distinguere il tipo di oggetto su cui il laser è rimbalzato; ad esempio, nel caso di un albero il punto viene classificato come "vegetazione"). 
 
 I dati vengono spesso conservati sotto forma di file .las.
-
 #### Struttura generale file .las
 1. Header block: contiene la firma (LASF signature), metadata che identificano il progetto, informazioni varie sui record (offset, fattori di scala).
 2. VLRs (variable length record): contengono informazioni aggiuntive come SRS (spatial reference system che serve per processare le informazioni geografiche) e metadati personalizzati con informazioni su dimensioni aggiuntive associate ai singoli punti (es. intensità, tempo, colore, ecc.).  
@@ -54,6 +198,7 @@ I dati vengono spesso conservati sotto forma di file .las.
 
 
 ### Problemi di memoria durante il data processing
+
 Il file caricato tramite laspy.read() viene caricato completamente in memoria e nel caso di file con molti punti questi peseranno moltissimo in memoria. Soluzioni:
 1. Batching dei punti
 2. Undersampling dei punti utilizzati per la ricostruzione 3d.
@@ -143,3 +288,18 @@ https://medium.com/@amnahhmohammed/getting-started-with-lidar-92ff984ec9f3
 https://medium.com/@faizalmusthofa69/the-art-of-lidar-901e9ed6348b
 
 
+## 5. Stack Software e Dipendenze
+
+La libreria **laspy** viene utilizzata per la gestione efficiente dell'input e dell'output dei file nei formati las e laz. Permette il parsing completo dei metadati, inclusi l'Header block e i Variable Length Records, e abilita lo streaming dei dati a blocchi per preservare la memoria RAM.
+
+La libreria **Open3D** costituisce il core geometrico del progetto. Si occupa della visualizzazione tridimensionale, del voxel downsampling per l'undersampling dei punti, della rimozione statistica degli outlier, del calcolo dei vettori normali e dell'applicazione degli algoritmi di mesh generation come la Poisson Surface Reconstruction.
+
+La libreria **rhino3dm** gestisce la fase finale di esportazione del lavoro. Consente la generazione e la scrittura diretta di file nativi in formato 3dm, organizzando le geometrie e i modelli tridimensionali ricostruiti su layer strutturati all'interno dell'ambiente CAD di Rhinoceros.
+
+La libreria **OpenCV** è lo strumento fondamentale per la manipolazione delle immagini e la computer vision 2D. All'interno della pipeline si occupa della calibrazione intrinseca della telecamera tramite l'analisi dei pattern a scacchiera, della successiva rettifica dei fotogrammi per eliminare le distorsioni geometriche della lente e della risoluzione del problema Perspective-n-Point per stimare la posa tra i sensori.
+
+
+1. https://it.mathworks.com/help/lidar/getstarted.html?s_tid=CRUX_lftnav
+2. https://github.com/laspy/laspy/tree/master
+3. https://github.com/mcneel/rhino3dm
+4. https://www.open3d.org/
