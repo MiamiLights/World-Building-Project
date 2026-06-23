@@ -1,6 +1,6 @@
 
 ### Obiettivi:
-Il progetto mira a sviluppare una pipeline software in grado di generare mappe 3D di un'area geografica prestabilita. Il sistema non si limiterà a ricostruire la geometria tridimensionale ma userà modelli di Deep Learning e Computer Vision per classificare gli elementi presenti nell'ambiente (vegetazione, edifici, ecc). 
+Il progetto mira a sviluppare una pipeline software in grado di generare mappe 3D di un'area geografica prestabilita. Il sistema non si limiterà a ricostruire la geometria tridimensionale ma si potranno usare algoritmi di Deep Learning e Computer Vision per classificare gli elementi presenti nell'ambiente (vegetazione, edifici, ecc). 
 
 
 ### Informazioni generali
@@ -38,11 +38,13 @@ Contro:
 
 ## Pipeline Algoritmica 
 
-Il flusso di elaborazione dati è suddiviso in tre macro-fasi gestite tramite librerie Python specializzate.
+Il flusso di elaborazione dati è suddiviso in cinque macro-fasi gestite tramite librerie Python specializzate.
 
 ### Fase 1: Raccolta Dati e Sincronizzazione Hardware
 
-La qualità della mappa 3D finale dipende dalla precisione in fase di acquisizione e dalla corretta calibrazione dei componenti. Per garantire la coerenza geometrica ed evitare disallineamenti spaziali i componenti devono essere fissati su un supporto rigido progettato per azzerare i micro-movimenti. 
+La qualità della mappa 3D finale dipende dalla precisione in fase di acquisizione e dalla corretta calibrazione dei componenti. Per garantire la coerenza geometrica ed evitare disallineamenti spaziali i componenti devono essere fissati su un supporto rigido progettato per azzerare i micro-movimenti. Bisogna considerare anche l'installazione di un dispositivo di stabilizzazione  inerziale in quanto anche un minimo movimento può compromettere la precisione dei dati raccolti. 
+
+Un altro approccio è quello di impiegare una IMU (Inertial Measurement Unit) che registra gli sbalzi. Un algoritmo prende i dati dell'IMU e corregge matematicamente le coordinate della nuvola di punti annullando l'effetto del movimento.
 
 #### 1. Sincronizzazione temporale hardware
 Per evitare disallineamenti spaziali i flussi dati devono essere sincronizzati al millisecondo:
@@ -57,6 +59,9 @@ Soluzioni possibili:
    Contro
    - Inutilizzabile in ambienti chiusi o con poco segnale GPS
 
+![[Pasted image 20260619103100.png]]
+
+
 **Approccio master-slave con microcontrollore** come Master.  Il microcontrollore, collegato ai sensori tramite cavi, invia degli impulsi elettrici che fungono da starter. I componenti eseguono le loro operazioni in maniera sincrona mentre il microcontrollore comunica al PC l'invio di un impulso caratterizzato da un tag. Quando il PC riceve l'immagine e la nuvola di punti questi vengono associati all'impulso comunicato precedentemente dal microcontrollore.  
    
    Pro: 
@@ -65,6 +70,7 @@ Soluzioni possibili:
 
    Contro: 
    - Complessità elettronica e di cablaggio
+   - Dipendenza dell'oscillatore al quarzo del microcontrollore.
 #### 2. Protocollo di Calibrazione dei Sensori
 
 Prima di avviare la sessione di rilievo effettiva, viene eseguita la procedura di calibrazione geometrica, divisa in due step sequenziali:
@@ -108,14 +114,14 @@ I file .las generati dal LiDAR possono contenere decine di milioni di punti, pes
 Una volta importati i blocchi di punti, usiamo Open3D per ottimizzare la nuvola:
 
 **Voxel Downsampling:** Lo spazio 3D viene suddiviso in una griglia di cubi virtuali chiamati Voxel. Se all'interno di un singolo cubo sono caduti 50 punti LiDAR, l'algoritmo li fonde calcolandone il baricentro e ne restituisce uno solo. Questo riduce il peso del file anche dell'80% mantenendo intatta la struttura geometrica dell'ambiente.
-    
-**Rimozione degli Outlier:** Il LiDAR può registrare falsi punti dovuti a particelle di polvere, pioggia o riflessi specchiari. L'algoritmo analizza la distanza media tra i punti: se un punto si trova isolato e troppo lontano dai suoi vicini, viene eliminato automaticamente come rumore di scansione.
+
+**Rimozione degli Outlier:** Il LiDAR può registrare falsi punti dovuti a particelle di polvere, pioggia o riflessi specchiati. L'algoritmo analizza la distanza media tra i punti: se un punto si trova isolato e troppo lontano dai suoi vicini, viene eliminato automaticamente come rumore di scansione.
 
 ### 3. Rettifica delle Immagini (`OpenCV`)
 
 In parallelo al LiDAR, le immagini raccolte dalle telecamere vengono elaborate per eliminare la distorsione ottica della lente (come la curvatura dei bordi):
 
-Utilizzando la matrice intrinseca $K$ e i coefficienti di distorsione calcolati nella Fase 0, la funzione cv2.undistort() di OpenCV "stira" l'immagine pixel per pixel.
+Utilizzando la matrice intrinseca K e i coefficienti di distorsione calcolati nella Fase 0, la funzione cv2.undistort() di OpenCV "stira" l'immagine pixel per pixel.
 Il risultato è un frame rettificato in cui le linee rette del mondo reale (es. i bordi dei palazzi) appaiono perfettamente dritte anche nell'immagine digitale.
 
 
@@ -124,9 +130,8 @@ Il risultato è un frame rettificato in cui le linee rette del mondo reale (es. 
 In questa fase si uniscono la geometria 3D del LiDAR e i dettagli visivi della telecamera.
 Grazie a questa fase, ogni punto della nuvola 3D non sarà più un semplice punto grigio nello spazio con coordinate (X, Y, Z), ma riceverà le informazioni sul colore (R, G, B) e sulla classe semantica provenienti dall'immagine.
 
-A questo punto ci sono due opzioni:
 
-##### **1. Early Fusion**: 
+##### **Early Fusion**: 
 Ogni punto 3D $P_{lidar} = (X, Y, Z)$ viene proiettato sui pixel dell'immagine $(u, v)$ tramite la formula:
 
 $$P_{camera} = K \times T \times P_{lidar}$$
@@ -134,12 +139,6 @@ $$P_{camera} = K \times T \times P_{lidar}$$
 
 **Pro/Contro:** Semplice e leggera, ma soffre di errori di parallasse (occlusioni).
 
-##### **2. Deep Fusion** (DA DEFINIRE) 
-Reti neurali 2D (per le immagini) e 3D (per il LiDAR) estraggono le caratteristiche in parallelo e le uniscono in uno spazio comune standardizzato, la **Bird's Eye View (BEV)** (vista dall'alto).
-
-**Risultato:** Massima accuratezza nel riconoscimento degli oggetti anche con scarsa luce o dati parziali.
-
-**Pro/Contro:** Robusta ed efficiente, ma richiede GPU potenti e complessi dataset di addestramento.
 
 ## Fase 4: Segmentazione Semantica e Classificazione
 
@@ -147,7 +146,7 @@ Fase dedicata al Deep Learning per comprendere il contesto e catalogare l'ambien
 
 **1. Ground Filtering (Isolamento Terreno):** Algoritmi geometrici (es. Cloth Simulation Filter in Open3D) separano la quota del terreno (asfalto, terra) dagli elementi verticali (edifici, alberi).
 
-**2. Riconoscimento Oggetti 3D:** Reti come **PointNet++** analizzano la forma locale dei punti non-terreno per assegnare una classe di appartenenza codificata nel file `.las`:
+**2. Riconoscimento Oggetti 3D:** Reti come **PointNet++** analizzano la forma locale dei punti non-terreno per assegnare una classe di appartenenza codificata nel file .las:
 
 - Classe 2: Terreno
 - Classe 5: Vegetazione / Alberi
@@ -155,7 +154,7 @@ Fase dedicata al Deep Learning per comprendere il contesto e catalogare l'ambien
 
 ## Fase 5: Ricostruzione 3D e Modellazione (World Building)
 
-La nuvola di punti discreti viene convertita in un modello geometrico continuo e matematico.
+La nuvola di punti discreti viene convertita in un modello geometrico continuo.
 
 **1. Ricostruzione delle Superfici (Mesh):** Algoritmi come il Poisson Surface Reconstruction (**Open3D**) uniscono i punti organici (terreno, alberi) creando una "pelle" continua di triangoli 3D.
 
@@ -197,13 +196,6 @@ I dati vengono spesso conservati sotto forma di file .las.
 3. Point records: registrazioni effettive dei punti registrati dal sensore con tutte le informazioni associate (posizione, intensità, dati geografici ecc.). 
 
 
-### Problemi di memoria durante il data processing
-
-Il file caricato tramite laspy.read() viene caricato completamente in memoria e nel caso di file con molti punti questi peseranno moltissimo in memoria. Soluzioni:
-1. Batching dei punti
-2. Undersampling dei punti utilizzati per la ricostruzione 3d.
-
-
 ### Problemi nell'impiego di LiDAR e Camera
 La scelta del sensore giusto è dettata da requisiti e budget. Consideriamo 4 tipologie di sensori LiDAR:
 1. LiDAR mono raggio
@@ -230,8 +222,6 @@ LiDAR Solid State ottima per ricostruzione 3D ma nel caso del riconoscimento il 
 
 Telecamere varie: Ricostruzione 3D molto complicata ma riconoscimento semplice. 
 
-
-
 #### Fusione LiDAR e Camera
 
 ##### Calibrazione camera
@@ -241,6 +231,9 @@ Prima di poter lavorare con il LiDAR è necessario "calibrare" la telecamera. Ut
 - il coefficiente di distorsione: 5 numeri che descrivono l'equazione della curva che la lente crea.
 
 Ogni foto che la telecamera scatta andrà "sistemata" tramite l'utilizzo di questi due componenti avendo come prodotto un'immagine oggettiva senza la distorsione della lente. 
+
+![[Pasted image 20260619094344.png]]
+
 ##### Calibrazione camera-LiDAR
 
 Se si vogliono usare una telecamera e un sensore lidar insieme bisogna fare dei passi preliminari per permettere una sincronizzazione tra i due. Fisicamente i due componenti potrebbero essere posizionati in maniera diversa. Per ovviare a questa differenza si utilizza una matrice di trasformazione, ossia una matrice 4x4 che in algebra si usa per cambiare la posizione, orientamento o dimensione di un oggetto tridimensionale. Converte le coordinate di un punto tridimensionale (x, y, z) in nuove coordinate (x', y', z') attraverso moltiplicazione standard matriciale. 
@@ -265,6 +258,8 @@ Una volta calcolata la matrice il software esegue questa operazione per ogni sin
 Il risultato è un nuovo punto P_camera che ha solo due coordinate (u, v) sull'immagine. 
 
 Oltre alla posizione spaziale abbiamo un problema di sincronizzazione temporale dobbiamo far corrispondere a un certo insieme di punti una certa immagine. Per fare questo utilizziamo un sistema che assegni dei timestamp a ogni pacchetto dati. Quando il sistema riceve un frame, cerca nel suo database l'immagine e la nuvola di punti che hanno lo stesso timestamp. Se il ritardo tra i due è superiore a pochi ms, il sistema scarta i dati perché sarebbero troppo imprecisi.   
+**Task**
+Ricostruzione 3D da video 360 con/senza riferimento cartografico. Analizzare problema legato all'altezza. Lora YOLO riaddestramento. 
 
 #### Link potenzialmente utili
 https://www.nature.com/articles/s41598-023-35170-z
@@ -273,6 +268,7 @@ https://research.google/blog/lidar-camera-deep-fusion-for-multi-modal-3d-detecti
 https://amslaurea.unibo.it/id/eprint/17919/1/TesiAccordino.pdf
 https://www.sciencedirect.com/science/article/pii/S0926580522003193
 
+https://www.youtube.com/watch?v=alIpD7EX_2M
 ### Algoritmi di classificazione
 https://www.neuvition.com/it/technology-blog/classification-algorithms.html  (aggiornato al 2023)
 #### Camera-LiDAR fusion
