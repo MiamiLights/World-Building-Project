@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "ee4335d3b8beaf3f",
+        "id": "5ec6e7ebfa4a584f",
         "type": "tabs",
         "children": [
           {
-            "id": "30936d9f68e76432",
+            "id": "bd338eecd65f117b",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Progetto World building.md",
+                "file": "appunti_vari/Camere 360° e Stereo.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Progetto World building"
+              "title": "Camere 360° e Stereo"
             }
           }
         ]
@@ -78,8 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "b010e26233e39cef",
@@ -175,7 +174,7 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "bases:Crea nuova Base": false,
+      "bases:Crea nuova Base": true,
       "switcher:Apri selezione rapida": false,
       "graph:Apri vista grafo": false,
       "canvas:Crea nuova lavagna": false,
@@ -184,15 +183,24 @@
       "command-palette:Apri riquadro comandi": false
     }
   },
-  "active": "30936d9f68e76432",
+  "active": "bd338eecd65f117b",
   "lastOpenFiles": [
+    "Senza nome.md",
+    "appunti_vari/Camere 360° e Stereo.md",
+    "appunti_vari/Accenni Matematici.md",
+    "appunti_vari/Matrice della telecamera.md",
+    "appunti_vari/Mappatura dal Mondo 3D a un'Immagine 2D.md",
+    "appunti_vari/Camere Stereo.md",
+    "appunti_vari/vari link.md",
+    "Progetto World building.md",
+    "appunti_vari",
+    "Senza nome.base",
     "Pasted image 20260619103100.png",
     "Pasted image 20260619103054.png",
     "Pasted image 20260619094344.png",
     "Pasted image 20260619092300.png",
     "Pasted image 20260617142429.png",
     "Stringhe.md",
-    "Progetto World building.md",
     "Pasted image 20260615095616.png",
     "Benvenuto.md"
   ]
